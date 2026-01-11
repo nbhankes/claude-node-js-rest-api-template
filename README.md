@@ -105,11 +105,11 @@ ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
 
 ### API Pricing (as of 2024)
 
-| Model | Input (per 1M tokens) | Output (per 1M tokens) |
-|-------|----------------------|------------------------|
-| Claude 3.5 Sonnet | $3.00 | $15.00 |
-| Claude 3.5 Haiku | $0.25 | $1.25 |
-| Claude 3 Opus | $15.00 | $75.00 |
+| Model             | Input (per 1M tokens) | Output (per 1M tokens) |
+| ----------------- | --------------------- | ---------------------- |
+| Claude 3.5 Sonnet | $3.00                 | $15.00                 |
+| Claude 3.5 Haiku  | $0.25                 | $1.25                  |
+| Claude 3 Opus     | $15.00                | $75.00                 |
 
 **Tip**: For cost-sensitive applications, use `claude-3-5-haiku-20241022` as your default model.
 
@@ -117,9 +117,26 @@ ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
 
 This API supports optional API key authentication to protect your endpoints from unauthorized access.
 
+### How It Works (Single-Key System)
+
+This template uses a **simple single-key approach** where one API key is stored in your environment variables. This is ideal for:
+
+- Personal projects
+- Internal APIs
+- Single-client applications
+- Development and testing
+
+The key is stored in your `.env` file and compared against incoming requests using a timing-safe comparison to prevent timing attacks.
+
+**How authentication flows:**
+
+1. Client sends request with `X-API-Key` header
+2. Middleware compares the provided key against `API_KEY` in environment
+3. If valid, request proceeds; if invalid, returns `401 Unauthorized`
+
 ### Enabling Authentication
 
-Set these environment variables:
+Set these environment variables in your `.env` file:
 
 ```bash
 REQUIRE_API_KEY=true
@@ -139,6 +156,41 @@ openssl rand -hex 32
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
+Example output: `a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456`
+
+### Validating API Keys
+
+Use the `/api/validate` endpoint to check if an API key is valid:
+
+```bash
+# Check if your key is valid
+curl -H "X-API-Key: your-secret-api-key" http://localhost:3000/api/validate
+```
+
+**Response (valid key):**
+
+```json
+{
+  "success": true,
+  "valid": true,
+  "message": "API key is valid",
+  "authRequired": true,
+  "timestamp": "2026-01-11T00:30:00.000Z"
+}
+```
+
+**Response (invalid/missing key when auth is required):**
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Invalid API key",
+    "statusCode": 401
+  }
+}
+```
+
 ### Making Authenticated Requests
 
 Include your API key in the `X-API-Key` header:
@@ -148,11 +200,19 @@ Include your API key in the `X-API-Key` header:
 curl -H "X-API-Key: your-secret-api-key-here" \
   http://localhost:3000/api/affirmations/positive
 
+# With curl.exe (Windows PowerShell)
+curl.exe -H "X-API-Key: your-secret-api-key-here" http://localhost:3000/api/affirmations/positive
+
 # With fetch (JavaScript)
 fetch('http://localhost:3000/api/affirmations/positive', {
   headers: {
     'X-API-Key': 'your-secret-api-key-here'
   }
+})
+
+# With axios (JavaScript)
+axios.get('http://localhost:3000/api/affirmations/positive', {
+  headers: { 'X-API-Key': 'your-secret-api-key-here' }
 })
 ```
 
@@ -169,17 +229,26 @@ curl -H "Authorization: Bearer your-secret-api-key-here" \
 curl "http://localhost:3000/api/affirmations/positive?api_key=your-secret-api-key-here"
 ```
 
-### Distributing API Keys to Users
+### When to Use a Database for Keys
 
-If you're hosting this API for others to use:
+The single-key approach in this template works well for simple use cases. Consider implementing database-backed API keys when you need:
 
-1. **Generate unique keys** for each user/application
-2. **Store keys securely** in a database (hashed, like passwords)
-3. **Implement key management** endpoints for creating/revoking keys
-4. **Set usage limits** per key to prevent abuse
-5. **Log key usage** for monitoring and billing
+- **Multiple users/clients** with different keys
+- **Usage tracking** per key for billing or analytics
+- **Key revocation** without restarting the server
+- **Per-key rate limits** for different service tiers
+- **Key expiration** dates
 
-For a simple setup, you can use a single shared key. For production with multiple users, consider implementing a proper API key management system or using a service like:
+### Scaling to Multiple Keys
+
+If you need to support multiple API keys, you would:
+
+1. **Create a database table** to store key hashes (never store plaintext keys!)
+2. **Modify the auth middleware** to query the database instead of checking the environment variable
+3. **Add key management endpoints** for creating/revoking keys
+4. **Hash keys before storing** using SHA-256 or similar
+
+For production with multiple users, consider using a service like:
 
 - [Auth0](https://auth0.com/) - Full authentication platform
 - [Clerk](https://clerk.com/) - Developer-friendly auth
@@ -190,43 +259,43 @@ For a simple setup, you can use a single shared key. For production with multipl
 
 ### Affirmations
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
+| Method   | Endpoint                     | Description                           |
+| -------- | ---------------------------- | ------------------------------------- |
 | GET/POST | `/api/affirmations/positive` | Get a positive, uplifting affirmation |
 | GET/POST | `/api/affirmations/negative` | Get a humorous "negative" affirmation |
 
 ### Emotions
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET/POST | `/api/emotions/support` | Get supportive content for a specific emotion |
-| GET | `/api/emotions/motivational-quote` | Get an inspirational quote |
-| GET | `/api/emotions/wellness-tip` | Get a practical wellness tip |
-| POST | `/api/emotions/analyze` | Analyze text for emotional content |
-| POST | `/api/emotions/custom` | Send a custom emotion-related prompt |
+| Method   | Endpoint                           | Description                                   |
+| -------- | ---------------------------------- | --------------------------------------------- |
+| GET/POST | `/api/emotions/support`            | Get supportive content for a specific emotion |
+| GET      | `/api/emotions/motivational-quote` | Get an inspirational quote                    |
+| GET      | `/api/emotions/wellness-tip`       | Get a practical wellness tip                  |
+| POST     | `/api/emotions/analyze`            | Analyze text for emotional content            |
+| POST     | `/api/emotions/custom`             | Send a custom emotion-related prompt          |
 
 ### Monitoring & Utility
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Basic health check (for load balancers) |
-| GET | `/health/detailed` | Detailed health with memory/uptime info |
-| GET | `/health/ready` | Readiness probe (for Kubernetes) |
-| GET | `/api/info` | Full API documentation |
-| GET | `/api/models` | List available Claude models |
-| GET | `/api/stats` | Token usage and circuit breaker status |
+| Method | Endpoint           | Description                             |
+| ------ | ------------------ | --------------------------------------- |
+| GET    | `/health`          | Basic health check (for load balancers) |
+| GET    | `/health/detailed` | Detailed health with memory/uptime info |
+| GET    | `/health/ready`    | Readiness probe (for Kubernetes)        |
+| GET    | `/api/info`        | Full API documentation                  |
+| GET    | `/api/models`      | List available Claude models            |
+| GET    | `/api/stats`       | Token usage and circuit breaker status  |
 
 ### Request Parameters
 
 All Claude API endpoints accept these optional parameters (via query string for GET, body for POST):
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `model` | string | `claude-sonnet-4-20250514` | Claude model to use |
-| `maxTokens` | integer | `1024` | Maximum response length (1-4096) |
-| `temperature` | float | `0.7` | Creativity level (0-1) |
-| `context` | string | - | Additional context for personalization (max 500 chars) |
-| `emotion` | string | - | Current emotion (see valid emotions below) |
+| Parameter     | Type    | Default                    | Description                                            |
+| ------------- | ------- | -------------------------- | ------------------------------------------------------ |
+| `model`       | string  | `claude-sonnet-4-20250514` | Claude model to use                                    |
+| `maxTokens`   | integer | `1024`                     | Maximum response length (1-4096)                       |
+| `temperature` | float   | `0.7`                      | Creativity level (0-1)                                 |
+| `context`     | string  | -                          | Additional context for personalization (max 500 chars) |
+| `emotion`     | string  | -                          | Current emotion (see valid emotions below)             |
 
 ### Valid Emotions
 
@@ -289,54 +358,54 @@ curl -X POST http://localhost:3000/api/emotions/custom \
 
 ### Required Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable            | Description            |
+| ------------------- | ---------------------- |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key |
 
 ### API Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default Claude model |
-| `DEFAULT_MAX_TOKENS` | `1024` | Default max response tokens |
-| `HARD_MAX_TOKENS` | `4096` | Absolute maximum tokens (cost protection) |
-| `MAX_PROMPT_LENGTH` | `50000` | Max input prompt characters |
+| Variable             | Default                    | Description                               |
+| -------------------- | -------------------------- | ----------------------------------------- |
+| `DEFAULT_MODEL`      | `claude-sonnet-4-20250514` | Default Claude model                      |
+| `DEFAULT_MAX_TOKENS` | `1024`                     | Default max response tokens               |
+| `HARD_MAX_TOKENS`    | `4096`                     | Absolute maximum tokens (cost protection) |
+| `MAX_PROMPT_LENGTH`  | `50000`                    | Max input prompt characters               |
 
 ### Server Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Server port |
-| `NODE_ENV` | `development` | Environment mode |
-| `REQUEST_TIMEOUT_MS` | `60000` | Request timeout in ms |
-| `MAX_BODY_SIZE` | `10kb` | Maximum request body size |
+| Variable             | Default       | Description               |
+| -------------------- | ------------- | ------------------------- |
+| `PORT`               | `3000`        | Server port               |
+| `NODE_ENV`           | `development` | Environment mode          |
+| `REQUEST_TIMEOUT_MS` | `60000`       | Request timeout in ms     |
+| `MAX_BODY_SIZE`      | `10kb`        | Maximum request body size |
 
 ### Security Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REQUIRE_API_KEY` | `false` | Enable API key authentication |
-| `API_KEY` | - | Your API key for client authentication |
-| `CORS_ORIGIN` | `*` | Allowed CORS origins |
-| `TRUST_PROXY` | `1` | Trusted proxy count |
+| Variable          | Default | Description                            |
+| ----------------- | ------- | -------------------------------------- |
+| `REQUIRE_API_KEY` | `false` | Enable API key authentication          |
+| `API_KEY`         | -       | Your API key for client authentication |
+| `CORS_ORIGIN`     | `*`     | Allowed CORS origins                   |
+| `TRUST_PROXY`     | `1`     | Trusted proxy count                    |
 
 ### Rate Limiting
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RATE_LIMIT_MAX` | `100` | Max requests per window (general) |
-| `RATE_LIMIT_WINDOW_MINUTES` | `15` | Rate limit window |
-| `CLAUDE_API_RATE_LIMIT_MAX` | `30` | Max Claude API requests per window |
-| `CLAUDE_API_RATE_LIMIT_WINDOW_MINUTES` | `15` | Claude API rate limit window |
+| Variable                               | Default | Description                        |
+| -------------------------------------- | ------- | ---------------------------------- |
+| `RATE_LIMIT_MAX`                       | `100`   | Max requests per window (general)  |
+| `RATE_LIMIT_WINDOW_MINUTES`            | `15`    | Rate limit window                  |
+| `CLAUDE_API_RATE_LIMIT_MAX`            | `30`    | Max Claude API requests per window |
+| `CLAUDE_API_RATE_LIMIT_WINDOW_MINUTES` | `15`    | Claude API rate limit window       |
 
 ### Resilience Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_MAX_RETRIES` | `3` | Max retry attempts |
-| `API_RETRY_BASE_DELAY_MS` | `1000` | Base retry delay |
-| `CIRCUIT_BREAKER_THRESHOLD` | `5` | Failures before circuit opens |
-| `CIRCUIT_BREAKER_RESET_MS` | `30000` | Time before circuit retry |
+| Variable                    | Default | Description                   |
+| --------------------------- | ------- | ----------------------------- |
+| `API_MAX_RETRIES`           | `3`     | Max retry attempts            |
+| `API_RETRY_BASE_DELAY_MS`   | `1000`  | Base retry delay              |
+| `CIRCUIT_BREAKER_THRESHOLD` | `5`     | Failures before circuit opens |
+| `CIRCUIT_BREAKER_RESET_MS`  | `30000` | Time before circuit retry     |
 
 ## Security Features
 
@@ -516,6 +585,7 @@ CMD ["node", "src/server.js"]
 ```
 
 Deploy to any Docker-compatible platform:
+
 - Docker Compose (local/VPS)
 - Kubernetes
 - AWS ECS/Fargate
@@ -524,15 +594,15 @@ Deploy to any Docker-compatible platform:
 
 ### Hosting Comparison
 
-| Platform | Free Tier | Min Cost | SSL | Scale | Complexity |
-|----------|-----------|----------|-----|-------|------------|
-| Railway | Yes | $5/mo | Auto | Good | Low |
-| Render | Yes | $7/mo | Auto | Good | Low |
-| Heroku | No | $5/mo | Auto | Good | Low |
-| DO App Platform | No | $5/mo | Auto | Good | Low |
-| AWS Beanstalk | No | ~$15/mo | Config | Excellent | Medium |
-| Cloud Run | Yes | Pay/use | Auto | Excellent | Medium |
-| VPS | No | $4/mo | Manual | Manual | High |
+| Platform        | Free Tier | Min Cost | SSL    | Scale     | Complexity |
+| --------------- | --------- | -------- | ------ | --------- | ---------- |
+| Railway         | Yes       | $5/mo    | Auto   | Good      | Low        |
+| Render          | Yes       | $7/mo    | Auto   | Good      | Low        |
+| Heroku          | No        | $5/mo    | Auto   | Good      | Low        |
+| DO App Platform | No        | $5/mo    | Auto   | Good      | Low        |
+| AWS Beanstalk   | No        | ~$15/mo  | Config | Excellent | Medium     |
+| Cloud Run       | Yes       | Pay/use  | Auto   | Excellent | Medium     |
+| VPS             | No        | $4/mo    | Manual | Manual    | High       |
 
 ### Production Checklist
 
@@ -634,11 +704,13 @@ Ensure `ANTHROPIC_API_KEY` is set in your `.env` file and the file is in your pr
 ### Circuit breaker open
 
 The circuit breaker opens after 5 consecutive failures. Check:
+
 1. Your Anthropic API key is valid
 2. You have sufficient API credits
 3. The Anthropic API status at [status.anthropic.com](https://status.anthropic.com/)
 
 Reset manually (development only):
+
 ```bash
 curl -X POST http://localhost:3000/api/stats/reset
 ```

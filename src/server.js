@@ -365,6 +365,37 @@ protectedRoutes.use(claudeApiLimiter);
 protectedRoutes.use('/affirmations', affirmationsRoutes);
 protectedRoutes.use('/emotions', emotionsRoutes);
 
+/**
+ * GET /api/validate
+ *
+ * Validates an API key without performing any other action.
+ * Useful for clients to verify their API key is correct before making requests.
+ *
+ * This endpoint requires authentication when REQUIRE_API_KEY=true.
+ * If authentication is disabled, it returns success with a notice.
+ *
+ * Usage:
+ *   curl -H "X-API-Key: your-key" http://localhost:3000/api/validate
+ *
+ * Returns:
+ *   - 200 with valid: true if the key is valid (or auth is disabled)
+ *   - 401 if the key is invalid or missing (when auth is required)
+ */
+protectedRoutes.get('/validate', (req, res) => {
+  // If we reach this point, the API key was valid (or auth is disabled)
+  // The apiKeyAuth middleware would have rejected invalid keys
+
+  res.json({
+    success: true,
+    valid: true,
+    message: config.security.requireApiKey
+      ? 'API key is valid'
+      : 'API key authentication is not enabled (development mode)',
+    authRequired: config.security.requireApiKey,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Apply protected routes under /api prefix
 app.use('/api', protectedRoutes);
 
